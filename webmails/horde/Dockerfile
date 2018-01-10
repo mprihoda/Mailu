@@ -65,6 +65,7 @@ COPY docker-entrypoint.sh /entrypoint.sh
 COPY base-conf.php /usr/src
 COPY registry.local.php /usr/src
 COPY imp-backends.php /usr/src
+COPY nls-config.php /usr/src
 COPY default-vhost.conf /etc/apache2/sites-available/000-default.conf
 
 EXPOSE 80 443

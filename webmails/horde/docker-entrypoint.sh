@@ -16,6 +16,7 @@ fi
 if [ ! -e config/conf.php ]; then
     cp /usr/src/base-conf.php config/conf.php
     cp /usr/src/imp-backends.php imp/config/backends.php
+    cp /usr/src/nls-config.php config/nls.local.php
     sed -i "/auth.*admins/c \$conf['auth']['admins'] = array('root@${DOMAIN:-maildev-cmi.e-bs.cz}');" config/conf.php
     horde-db-migrate
     DB=$(get_conf_string "sql" "database")
