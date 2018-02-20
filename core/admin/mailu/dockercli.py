@@ -12,7 +12,7 @@ def get(*names):
     result = {}
     all_containers = cli.containers(all=True)
     for brief in all_containers:
-        if brief['Image'].startswith('mailu/'):
+        if brief['Labels'].get('com.docker.compose.project') == 'mailu':
             container = cli.inspect_container(brief['Id'])
             container['Image'] = cli.inspect_image(container['Image'])
             name = container['Config']['Labels']['com.docker.compose.service']
