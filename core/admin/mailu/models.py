@@ -1,4 +1,4 @@
-from mailu import app, db, dkim, login_manager
+from mailu import app, db, dkim, login_manager, quota
 
 from sqlalchemy.ext import declarative
 from passlib import context, hash
@@ -11,13 +11,42 @@ import time
 import os
 import glob
 import smtplib
+import idna
+import dns
 
 
-# Many-to-many association table for domain managers
-managers = db.Table('manager',
-    db.Column('domain_name', db.String(80), db.ForeignKey('domain.name')),
-    db.Column('user_email', db.String(255), db.ForeignKey('user.email'))
-)
+class IdnaDomain(db.TypeDecorator):
+    """ Stores a Unicode string in it's IDNA representation (ASCII only)
+    """
+
+    impl = db.String(80)
+
+    def process_bind_param(self, value, dialect):
+        return idna.encode(value).decode("ascii")
+
+    def process_result_value(self, value, dialect):
+        return idna.decode(value)
+
+
+class IdnaEmail(db.TypeDecorator):
+    """ Stores a Unicode string in it's IDNA representation (ASCII only)
+    """
+
+    impl = db.String(255, collation="NOCASE")
+
+    def process_bind_param(self, value, dialect):
+        localpart, domain_name = value.split('@')
+        return "{0}@{1}".format(
+            localpart,
+            idna.encode(domain_name).decode('ascii'),
+        )
+
+    def process_result_value(self, value, dialect):
+        localpart, domain_name = value.split('@')
+        return "{0}@{1}".format(
+            localpart,
+            idna.decode(domain_name),
+        )
 
 
 class CommaSeparatedList(db.TypeDecorator):
@@ -38,6 +67,13 @@ class CommaSeparatedList(db.TypeDecorator):
         return filter(bool, value.split(","))
 
 
+# Many-to-many association table for domain managers
+managers = db.Table('manager',
+    db.Column('domain_name', IdnaDomain, db.ForeignKey('domain.name')),
+    db.Column('user_email', IdnaEmail, db.ForeignKey('user.email'))
+)
+
+
 class Base(db.Model):
     """ Base class for all models
     """
@@ -54,12 +90,13 @@ class Domain(Base):
     """
     __tablename__ = "domain"
 
-    name = db.Column(db.String(80), primary_key=True, nullable=False)
+    name = db.Column(IdnaDomain, primary_key=True, nullable=False)
     managers = db.relationship('User', secondary=managers,
         backref=db.backref('manager_of'), lazy='dynamic')
     max_users = db.Column(db.Integer, nullable=False, default=0)
     max_aliases = db.Column(db.Integer, nullable=False, default=0)
     max_quota_bytes = db.Column(db.Integer(), nullable=False, default=0)
+    signup_enabled = db.Column(db.Boolean(), nullable=False, default=False)
 
     @property
     def dkim_key(self):
@@ -92,6 +129,16 @@ class Domain(Base):
         else:
             return False
 
+    def check_mx(self):
+        try:
+            hostnames = app.config['HOSTNAMES'].split(',')
+            return any(
+                str(rset).split()[-1][:-1] in hostnames
+                for rset in dns.resolver.query(self.name, 'MX')
+            )
+        except Exception as e:
+            return False
+
     def __str__(self):
         return self.name
 
@@ -109,8 +156,8 @@ class Alternative(Base):
 
     __tablename__ = "alternative"
 
-    name = db.Column(db.String(80), primary_key=True, nullable=False)
-    domain_name = db.Column(db.String(80), db.ForeignKey(Domain.name))
+    name = db.Column(IdnaDomain, primary_key=True, nullable=False)
+    domain_name = db.Column(IdnaDomain, db.ForeignKey(Domain.name))
     domain = db.relationship(Domain,
         backref=db.backref('alternatives', cascade='all, delete-orphan'))
 
@@ -140,33 +187,40 @@ class Email(object):
 
     @declarative.declared_attr
     def domain_name(cls):
-        return db.Column(db.String(80), db.ForeignKey(Domain.name),
-            nullable=False)
+        return db.Column(IdnaDomain, db.ForeignKey(Domain.name),
+            nullable=False, default=IdnaDomain)
 
     # This field is redundant with both localpart and domain name.
     # It is however very useful for quick lookups without joining tables,
-    # especially when the mail server il reading the database.
+    # especially when the mail server is reading the database.
     @declarative.declared_attr
     def email(cls):
         updater = lambda context: "{0}@{1}".format(
             context.current_parameters["localpart"],
             context.current_parameters["domain_name"],
         )
-        return db.Column(db.String(255, collation="NOCASE"),
+        return db.Column(IdnaEmail,
             primary_key=True, nullable=False,
             default=updater)
 
     def sendmail(self, subject, body):
         """ Send an email to the address.
         """
-        from_address = '{}@{}'.format(
-            app.config['POSTMASTER'], app.config['DOMAIN'])
-        with smtplib.SMTP('smtp', port=10025) as smtp:
+        from_address = "{0}@{1}".format(
+            app.config['POSTMASTER'],
+            idna.encode(app.config['DOMAIN']).decode('ascii'),
+        )
+        with smtplib.SMTP(app.config['HOST_AUTHSMTP'], port=10025) as smtp:
+            to_address = "{0}@{1}".format(
+                self.localpart,
+                idna.encode(self.domain_name).decode('ascii'),
+            )
             msg = text.MIMEText(body)
             msg['Subject'] = subject
             msg['From'] = from_address
-            msg['To'] = self.email
-            smtp.sendmail(from_address, [self.email], msg.as_string())
+            msg['To'] = to_address
+            smtp.sendmail(from_address, [to_address], msg.as_string())
+
 
     def __str__(self):
         return self.email
@@ -182,6 +236,7 @@ class User(Base, Email):
     password = db.Column(db.String(255), nullable=False)
     quota_bytes = db.Column(db.Integer(), nullable=False, default=10**9)
     global_admin = db.Column(db.Boolean(), nullable=False, default=False)
+    enabled = db.Column(db.Boolean(), nullable=False, default=True)
 
     # Features
     enable_imap = db.Column(db.Boolean(), nullable=False, default=True)
@@ -209,6 +264,10 @@ class User(Base, Email):
 
     def get_id(self):
         return self.email
+
+    @property
+    def quota_bytes_used(self):
+        return quota.get(self.email + "/quota/storage") or 0
 
     scheme_dict = {'SHA512-CRYPT': "sha512_crypt",
                    'SHA256-CRYPT': "sha256_crypt",
@@ -255,7 +314,7 @@ class User(Base, Email):
     @classmethod
     def login(cls, email, password):
         user = cls.query.get(email)
-        return user if (user and user.check_password(password)) else None
+        return user if (user and user.enabled and user.check_password(password)) else None
 
 login_manager.user_loader(User.query.get)
 

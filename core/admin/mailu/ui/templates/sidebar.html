@@ -17,11 +17,6 @@
       </a>
     </li>
     <li>
-      <a href="{{ url_for('.user_forward') }}">
-        <i class="fa fa-share"></i> <span>{% trans %}Auto-forward{% endtrans %}</span>
-      </a>
-    </li>
-    <li>
       <a href="{{ url_for('.user_reply') }}">
         <i class="fa fa-plane"></i> <span>{% trans %}Auto-reply{% endtrans %}</span>
       </a>
@@ -39,11 +34,6 @@
 
     <li class="header">{% trans %}Administration{% endtrans %}</li>
     {% if current_user.global_admin %}
-    <li>
-      <a href="{{ url_for('.services') }}">
-        <i class="fa fa-dashboard"></i> <span>{% trans %}Services status{% endtrans %}</span>
-      </a>
-    </li>
     <li>
       <a href="{{ url_for('.announcement') }}">
         <i class="fa fa-bullhorn"></i> <span>{% trans %}Announcement{% endtrans %}</span>
@@ -83,6 +73,11 @@
     </li>
     {% endif %}
     <li>
+      <a href="{{ url_for('.client') }}">
+        <i class="fa fa-laptop"></i> <span>{% trans %}Client setup{% endtrans %}</span>
+      </a>
+    </li>
+    <li>
       <a href="{{ config["WEBSITE"] }}">
         <i class="fa fa-globe"></i> <span>{% trans %}Website{% endtrans %}</span>
       </a>
@@ -92,6 +87,13 @@
         <i class="fa fa-life-ring"></i> <span>{% trans %}Help{% endtrans %}</span>
       </a>
     </li>
+    {% if config['DOMAIN_REGISTRATION'] %}
+    <li>
+      <a href="{{ url_for('.domain_signup') }}">
+        <i class="fa fa-plus-square"></i> <span>{% trans %}Register a domain{% endtrans %}</span>
+      </a>
+    </li>
+    {% endif %}
     {% if current_user.is_authenticated %}
     <li>
       <a href="{{ url_for('.logout') }}">
@@ -100,10 +102,17 @@
     </li>
     {% else %}
     <li>
-      <a href="#">
+      <a href="{{ url_for('.login') }}">
         <i class="fa fa-sign-in"></i> <span>{% trans %}Sign in{% endtrans %}</span>
       </a>
     </li>
+    {% if signup_domains %}
+    <li>
+      <a href="{{ url_for('.user_signup') }}">
+        <i class="fa fa-user-plus"></i> <span>{% trans %}Sign up{% endtrans %}</span>
+      </a>
+    </li>
+    {% endif %}
     {% endif %}
   </ul>
 </section>

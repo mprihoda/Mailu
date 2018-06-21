@@ -61,8 +61,9 @@ virtual_mailbox_domains = ${sql}sqlite-virtual_mailbox_domains.cf
 virtual_mailbox_maps = $virtual_alias_maps
 
 # Mails are transported if required, then forwarded to Dovecot for delivery
+relay_domains = ${sql}sqlite-transport.cf
 transport_maps = ${sql}sqlite-transport.cf
-virtual_transport = lmtp:inet:imap:2525
+virtual_transport = lmtp:inet:{{ HOST_LMTP }}
 
 # In order to prevent Postfix from running DNS query, enforce the use of the
 # native DNS stack, that will check /etc/hosts properly.
@@ -87,13 +88,16 @@ smtpd_recipient_restrictions =
   reject_non_fqdn_sender,
   reject_unknown_sender_domain,
   reject_unknown_recipient_domain,
+  reject_unverified_recipient,
   permit
+
+unverified_recipient_reject_reason = Address lookup failure
 
 ###############
 # Milter
 ###############
 
-smtpd_milters = inet:antispam:11332
+smtpd_milters = inet:{{ HOST_ANTISPAM }}
 milter_protocol = 6
 milter_mail_macros = i {mail_addr} {client_addr} {client_name} {auth_authen}
 milter_default_action = tempfail

@@ -1,9 +1,9 @@
 FROM php:5-apache
 
 RUN apt-get update && apt-get install -y \
-      unzip
+      unzip python3 python3-jinja2
 
-ENV RAINLOOP_URL https://github.com/RainLoop/rainloop-webmail/releases/download/v1.11.3/rainloop-community-1.11.3.zip
+ENV RAINLOOP_URL https://github.com/RainLoop/rainloop-webmail/releases/download/v1.12.0/rainloop-community-1.12.0.zip
 
 RUN rm -rf /var/www/html/ \
  && mkdir /var/www/html \
@@ -22,6 +22,6 @@ COPY php.ini /usr/local/etc/php/conf.d/rainloop.ini
 COPY config.ini /config.ini
 COPY default.ini /default.ini
 
-COPY start.sh /start.sh
+COPY start.py /start.py
 
-CMD ["/start.sh"]
+CMD /start.py

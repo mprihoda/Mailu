@@ -11,6 +11,9 @@ import os
 import docker
 import socket
 import uuid
+import redis
+
+from werkzeug.contrib import fixers
 
 # Create application
 app = flask.Flask(__name__)
@@ -23,8 +26,10 @@ default_config = {
     'BABEL_DEFAULT_LOCALE': 'en',
     'BABEL_DEFAULT_TIMEZONE': 'UTC',
     'BOOTSTRAP_SERVE_LOCAL': True,
-    'RATELIMIT_STORAGE_URL': 'redis://redis',
+    'RATELIMIT_STORAGE_URL': 'redis://redis/2',
+    'QUOTA_STORAGE_URL': 'redis://redis/1',
     'DEBUG': False,
+    'DOMAIN_REGISTRATION': False,
     # Statistics management
     'INSTANCE_ID_PATH': '/data/instance',
     'STATS_ENDPOINT': '0.{}.stats.mailu.io',
@@ -44,13 +49,21 @@ default_config = {
     'WELCOME_BODY': 'Dummy welcome body',
     'DKIM_SELECTOR': 'dkim',
     'DKIM_PATH': '/dkim/{domain}.{selector}.key',
+    'DEFAULT_QUOTA': 1000000000,
     # Web settings
     'SITENAME': 'Mailu',
     'WEBSITE': 'https://mailu.io',
     'WEB_ADMIN': '/admin',
     'WEB_WEBMAIL': '/webmail',
+    'RECAPTCHA_PUBLIC_KEY': '',
+    'RECAPTCHA_PRIVATE_KEY': '',
     # Advanced settings
     'PASSWORD_SCHEME': 'SHA512-CRYPT',
+    # Host settings
+    'HOST_IMAP': 'imap',
+    'HOST_POP3': 'imap',
+    'HOST_SMTP': 'smtp',
+    'HOST_AUTHSMTP': os.environ.get('HOST_SMTP', 'smtp'),
 }
 
 # Load configuration from the environment if available
@@ -76,6 +89,9 @@ manager.add_command('db', flask_migrate.MigrateCommand)
 babel = flask_babel.Babel(app)
 translations = list(map(str, babel.list_translations()))
 
+# Quota manager
+quota = redis.Redis.from_url(app.config.get("QUOTA_STORAGE_URL"))
+
 @babel.localeselector
 def get_locale():
     return flask.request.accept_languages.best_match(translations)
@@ -93,8 +109,10 @@ def handle_needs_login():
 
 @app.context_processor
 def inject_defaults():
+    signup_domains = models.Domain.query.filter_by(signup_enabled=True).all()
     return dict(
         current_user=flask_login.current_user,
+        signup_domains=signup_domains,
         config=app.config
     )
 
@@ -115,4 +133,4 @@ class PrefixMiddleware(object):
             environ['SCRIPT_NAME'] = prefix
         return self.app(environ, start_response)
 
-app.wsgi_app = PrefixMiddleware(app.wsgi_app)
+app.wsgi_app = PrefixMiddleware(fixers.ProxyFix(app.wsgi_app))

@@ -50,7 +50,7 @@ like ``localpart+custom@domain.tld`` to deliver mail to ``localpart@domain.tld``
 This is useful to provide external parties with different email addresses and
 later classify incoming mail based on the custom part.
 
-The ``DMAR_RUA`` and ``DMARC_RUF`` are DMARC protocol specific values. They hold
+The ``DMARC_RUA`` and ``DMARC_RUF`` are DMARC protocol specific values. They hold
 the localpart for DMARC rua and ruf email addresses.
 
 Web settings
@@ -69,3 +69,31 @@ Advanced settings
 The ``PASSWORD_SCHEME`` is the password encryption scheme. You should use the
 default value, unless you are importing password from a separate system and
 want to keep using the old password encryption scheme.
+
+Infrastructure settings
+-----------------------
+
+Various environment variables ``HOST_*`` can be used to run Mailu containers
+separately from a supported orchestrator. It is used by the various components
+to find the location of the other containers it depends on. They can contain an
+optional port number. Those variables are:
+
+- ``HOST_IMAP``: the container that is running the IMAP server (default: ``imap``, port 143)
+- ``HOST_LMTP``: the container that is running the LMTP server (default: ``imap:2525``)
+- ``HOST_HOSTIMAP``: the container that is running the IMAP server for the webmail (default: ``imap``, port 10143)
+- ``HOST_POP3``: the container that is running the POP3 server (default: ``imap``, port 110)
+- ``HOST_SMTP``: the container that is running the SMTP server (default: ``smtp``, port 25)
+- ``HOST_AUTHSMTP``: the container that is running the authenticated SMTP server for the webnmail (default: ``smtp``, port 10025)
+- ``HOST_ADMIN``: the container that is running the admin interface (default: ``admin``)
+- ``HOST_ANTISPAM``: the container that is running the antispam service (default: ``antispam:11334``)
+- ``HOST_WEBMAIL``: the container that is running the webmail (default: ``webmail``)
+- ``HOST_WEBDAV``: the container that is running the webdav server (default: ``webdav:5232``)
+- ``HOST_REDIS``: the container that is running the redis daemon (default: ``redis``)
+
+Additional variables are used to locate other containers without dialing a
+specific port number. It is used to either whitelist connection from these
+addresses or connect to containers on the docker network:
+
+- ``FRONT_ADDRESS``: the nginx container address (default: ``front``)
+- ``WEBMAIL_ADDRESS``: the webmail container address (default: ``webmail``)
+- ``IMAP_ADDRESS``: the webmail container address (default: ``webmail``)

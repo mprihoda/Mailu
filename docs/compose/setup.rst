@@ -29,7 +29,7 @@ for the ``VERSION_TAG`` branch, use:
 Then open the ``.env`` file to setup the mail server. Modify the ``ROOT`` setting
 to match your setup directory if different from ``/mailu``.
 
-Mdify the ``VERSION`` configuration in the ``.env`` file to reflect the version you picked.
+Modify the ``VERSION`` configuration in the ``.env`` file to reflect the version you picked.
 
 Set the common configuration values
 -----------------------------------
@@ -52,6 +52,8 @@ values:
 - ``letsencrypt`` will use the Letsencrypt! CA to generate automatic ceriticates;
 - ``mail`` is similar to ``cert`` except that TLS will only be served for
   emails (IMAP and SMTP), not HTTP (use it behind reverse proxies);
+- ``mail-letsencrypt`` is similar to ``letsencrypt`` except that TLS will only be served for
+  emails (IMAP and SMTP), not HTTP (use it behind reverse proxies);
 - ``notls`` will disable TLS, this is not recommended except for testing.
 
 Enable optional features
@@ -63,11 +65,11 @@ default configuration.
 A Webmail is a Web interface exposing an email client. Mailu webmails are
 bound to the internal IMAP and SMTP server for users to access their mailbox through
 the Web. By exposing a complex application such as a Webmail, you should be aware of
-the security implications such an increase of attack surface. The ``WEBMAIL``
+the security implications caused by such an increase of attack surface. The ``WEBMAIL``
 configuration option must be one of the following:
 
 - ``none`` is the default value, no Webmail service will be exposed;
-- ``roundcube`` will run the popular Roundcube Webmail ;
+- ``roundcube`` will run the popular Roundcube Webmail;
 - ``rainloop`` will run the popular Rainloop Webmail.
 
 The administration interface is not exposed on the public address by default,
@@ -93,16 +95,23 @@ setting. The configuration option must be one of the following:
 Make sure that you have at least 1GB or memory for ClamAV to load its signature
 database.
 
+If you run Mailu behind a reverse proxy you can use ``REAL_IP_HEADER`` and
+``REAL_IP_FROM`` to set the values of respective the Nginx directives
+``real_ip_header`` and ``set_real_ip_from``. The ``REAL_IP_FROM`` configuration
+option is a comma-separated list of IPs (or CIDRs) of which for each a
+``set_real_ip_from`` directive is added in the Nginx configuration file.
+
 Finish setting up TLS
 ---------------------
 
 Mailu relies heavily on TLS and must have a key pair and a certificate
 available, at least for the hostname configured in the ``.env`` file.
 
-If you set ``TLS_FLAVOR`` to ``cert`` or if then you must create a ``certs`` directory
+If you set ``TLS_FLAVOR`` to ``cert`` or ``mail`` then you must create a ``certs`` directory
 in your root path and setup a key-certificate pair there:
-- ``cert.pem`` contains the certificate,
-- ``key.pem`` contains the key pair.
+
+- ``cert.pem`` contains the certificate (override with ``TLS_CERT_FILENAME``),
+- ``key.pem`` contains the key pair (override with ``TLS_KEYPAIR_FILENAME``).
 
 Start Mailu
 -----------
