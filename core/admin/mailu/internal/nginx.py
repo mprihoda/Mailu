@@ -1,12 +1,14 @@
-from mailu import db, models, app
+import os
+
+from mailu import db, models
 
 import re
 import socket
 import urllib
 
+from mailu.internal import checkpassword
 
 SUPPORTED_AUTH_METHODS = ["none", "plain"]
-
 
 STATUSES = {
     "authentication": ("Authentication credentials invalid", {
@@ -15,6 +17,20 @@ STATUSES = {
         "pop3": "-ERR Authentication failed"
     }),
 }
+
+drupal_conf = checkpassword.load_config(os.environ['DRUPAL_CONF'])
+
+cf = checkpassword.ConfiguredConnectionFactory(drupal_conf)
+
+def check_drupal_password(user, password):
+    return checkpassword.check_user_password(password, checkpassword.query_password(user, cf))
+
+
+def try_drupal_auth(user_email, password):
+    if '@' in user_email:
+        (just_user, domain) = user_email.split('@')
+        return domain == drupal_conf['domain'] and check_drupal_password(just_user, password)
+    return False
 
 
 def handle_authentication(headers):
@@ -37,13 +53,19 @@ def handle_authentication(headers):
         user_email = urllib.parse.unquote(headers["Auth-User"])
         password = urllib.parse.unquote(headers["Auth-Pass"])
         ip = urllib.parse.unquote(headers["Client-Ip"])
+        if try_drupal_auth(user_email, password):
+            return {
+                "Auth-Status": "OK",
+                "Auth-Server": server,
+                "Auth-Port": port
+            }
         user = models.User.query.get(user_email)
         status = False
         if user:
             for token in user.tokens:
                 if (token.check_password(password) and
-                    (not token.ip or token.ip == ip)):
-                        status = True
+                        (not token.ip or token.ip == ip)):
+                    status = True
             if user.check_password(password):
                 status = True
             if status:
