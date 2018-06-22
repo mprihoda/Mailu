@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y \
         libssh2-1-dev \
         libbz2-dev bzip2 \
         libc-client2007e-dev libkrb5-dev \
+        libtidy-dev libgeoip-dev \
         locales \
     && rm -rf /var/lib/apt/lists/*
 
@@ -32,15 +33,14 @@ RUN docker-php-ext-configure gd --with-png-dir=/usr --with-freetype-dir=/usr --w
     && docker-php-ext-configure gettext \
     && docker-php-ext-configure mysql \
     && docker-php-ext-configure mysqli \
-    && docker-php-ext-install gd iconv mcrypt imap mysql mysqli bz2 pgsql xmlrpc gettext ldap mbstring intl \
+    && docker-php-ext-configure tidy \
+    && docker-php-ext-install gd iconv mcrypt imap mysql mysqli bz2 pgsql xmlrpc gettext ldap mbstring intl tidy \
     && pecl install imagick \
+    && pecl install geoip \
     && pecl install memcache \
     && a2enmod rewrite
 
-VOLUME /var/www/html
-
 RUN pear upgrade PEAR \
-#    && pear config-set http_proxy http://x.x.x.x:8080 \ <-- If you need a proxy
  && pear upgrade channel://pear.php.net/XML_Serializer-0.20.2 \
  && pear upgrade channel://pear.php.net/Date_Holidays-0.21.8 \
  && pear upgrade channel://pear.php.net/Text_LanguageDetect-0.3.0 \
@@ -53,19 +53,31 @@ RUN pear upgrade PEAR \
  && pear upgrade channel://pecl.php.net/ssh2-0.12 \
     && pear channel-discover pear.horde.org \
     && rm -rf /var/www/html/* \
+    && pecl install horde/horde_lz4 \
     && pear install horde/horde_role \
-    && pear config-set horde_dir /usr/src/horde \
-#    && pear run-scripts horde/horde_role \
+    && pear config-set horde_dir /var/www/html \
     && pear install -a -B horde/webmail-$HORDE_VERSION \
-    && echo 'extension=memcache.so' > /usr/local/etc/php/conf.d/docker-php-ext-memcache.ini
+    && echo 'extension=geoip.so' > /usr/local/etc/php/conf.d/docker-php-ext-geoip.ini \
+    && echo 'extension=horde_lz4.so' > /usr/local/etc/php/conf.d/docker-php-ext-horde_lz4.ini \
+    && echo 'extension=memcache.so' > /usr/local/etc/php/conf.d/docker-php-ext-memcache.ini \
+    && echo 'extension=imagick.so' > /usr/local/etc/php/conf.d/docker-php-ext-imagick.ini
 
-RUN pear config-set horde_dir /var/www/html
+RUN chown -R www-data:www-data /var/www/html/static
 
+COPY php.ini /usr/local/etc/php/conf.d/local.ini
 COPY docker-entrypoint.sh /entrypoint.sh
-COPY base-conf.php /usr/src
-COPY registry.local.php /usr/src
-COPY imp-backends.php /usr/src
-COPY nls-config.php /usr/src
+COPY base-conf.php config/conf.php
+COPY registry.local.php config/
+COPY nls-config.php config/
+COPY imp-conf.php imp/config/conf.php
+COPY ingo-conf.php ingo/config/conf.php
+COPY kronolith-conf.php kronolith/config/conf.php
+COPY turba-conf.php turba/config/conf.php
+COPY mnemo-conf.php mnemo/config/conf.php
+COPY gollem-conf.php gollem/config/conf.php
+COPY nag-conf.php nag/config/conf.php
+COPY trean-conf.php trean/config/conf.php
+COPY imp-backends.php imp/config/backends.php
 COPY default-vhost.conf /etc/apache2/sites-available/000-default.conf
 
 EXPOSE 80 443

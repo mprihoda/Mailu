@@ -1,13 +1,36 @@
 <?php
+if (!function_exists("safe_env")) {
+    function safe_env($key, $fallback)
+    {
+        if (array_key_exists($key, $_ENV)) {
+            return $_ENV[$key];
+        }
+        return $fallback;
+    }
+}
+
+if (!function_exists("decodebool")) {
+    function decodebool($value)
+    {
+        return filter_var($value, FILTER_VALIDATE_BOOLEAN);
+    }
+}
+
+if (!function_exists("decodelist")) {
+    function decodelist($value)
+    {
+        return explode(",", $value);
+    }
+}
 /* CONFIG START. DO NOT CHANGE ANYTHING IN OR AFTER THIS LINE. */
 // $Id: 08fc885cd91fbae2d752e274b554c5f1645129c8 $
 $conf['vhosts'] = false;
 $conf['debug_level'] = E_ALL & ~E_NOTICE;
 $conf['max_exec_time'] = 0;
 $conf['compress_pages'] = true;
-$conf['secret_key'] = 'QFoTkJb6cpc8eW3dSxAJpLP';
+$conf['secret_key'] = $_ENV['SECRET_KEY'];
 $conf['umask'] = 077;
-$conf['testdisable'] = true;
+$conf['testdisable'] = decodebool(safe_env('HORDE_TEST_DISABLE', 'true'));
 $conf['use_ssl'] = 2;
 $conf['server']['name'] = $_SERVER['SERVER_NAME'];
 $conf['urls']['token_lifetime'] = 30;
@@ -27,7 +50,7 @@ $conf['sql']['logqueries'] = false;
 $conf['sql']['phptype'] = 'sqlite';
 $conf['nosql']['phptype'] = false;
 $conf['ldap']['useldap'] = false;
-$conf['auth']['admins'] = array('root@maildev-cmi.e-bs.cz');
+$conf['auth']['admins'] = decodelist(safe_env('HORDE_ADMINS', 'root@maildev-cmi.e-bs.cz'));
 $conf['auth']['checkip'] = true;
 $conf['auth']['checkbrowser'] = true;
 $conf['auth']['resetpassword'] = false;
@@ -43,11 +66,11 @@ $conf['auth']['params']['login_block'] = false;
 $conf['auth']['params']['login_block_count'] = 5;
 $conf['auth']['params']['login_block_time'] = 5;
 $conf['signup']['allow'] = false;
-$conf['log']['priority'] = 'INFO';
+$conf['log']['priority'] = safe_env('HORDE_LOG_LEVEL', 'INFO');
 $conf['log']['ident'] = 'HORDE';
 $conf['log']['name'] = '/data/horde.log';
 $conf['log']['type'] = 'file';
-$conf['log']['enabled'] = false;
+$conf['log']['enabled'] = decodebool(safe_env('HORDE_LOG', 'false'));
 $conf['log_accesskeys'] = false;
 $conf['prefs']['maxsize'] = 65535;
 $conf['prefs']['params']['driverconfig'] = 'horde';
