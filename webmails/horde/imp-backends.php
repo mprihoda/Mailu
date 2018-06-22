@@ -5,7 +5,7 @@
         'disabled' => false,
         'name' => 'IMAP Server',
         'hostspec' => 'imap',
-        'hordeauth' => false,
+        'hordeauth' => 'full',
         'protocol' => 'imap',
         'port' => 143,
         // Plaintext logins are disabled by default on IMAP servers (see RFC 3501
