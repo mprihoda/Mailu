@@ -16,21 +16,21 @@ default_config_file_path = "/etc/checkpassword.py.cfg.json"
 itoa64 = './0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
 
 
-def password_base64_encode(input, count):
+def password_base64_encode(strin, count):
     output = ''
     i = 0
     while True:
-        value = input[i]
+        value = strin[i]
         i = i + 1
         output = output + itoa64[value & 0x3f]
         if i < count:
-            value = value | input[i] << 8
+            value = value | strin[i] << 8
         output = output + itoa64[(value >> 6) & 0x3f]
         if i >= count:
             break
         i = i + 1
         if i < count:
-            value = value | input[i] << 16
+            value = value | strin[i] << 16
         output = output + itoa64[(value >> 12) & 0x3f]
         if i >= count:
             break
@@ -93,9 +93,10 @@ def query_password(username, connection_factory):
     with connection_factory.make() as conn:
         cursor = conn.cursor()
         cursor.execute(query, params)
-        rows = cursor.fetchone()
-        if rows is not None and len(rows) > 0 and rows[0] != '':
-            return rows[0]
+        if cursor.rowcount != 0:
+            rows = cursor.fetchone()
+            if rows is not None and len(rows) > 0 and rows[0] != '':
+                return rows[0]
         return None
 
 

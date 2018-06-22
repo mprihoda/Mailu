@@ -1,12 +1,12 @@
 import os
 
-from mailu import db, models
+from mailu import app, db, models
 
 import re
 import socket
 import urllib
 
-from mailu.internal import checkpassword
+from drupal_auth import checkpassword
 
 SUPPORTED_AUTH_METHODS = ["none", "plain"]
 
@@ -22,15 +22,61 @@ drupal_conf = checkpassword.load_config(os.environ['DRUPAL_CONF'])
 
 cf = checkpassword.ConfiguredConnectionFactory(drupal_conf)
 
+
 def check_drupal_password(user, password):
-    return checkpassword.check_user_password(password, checkpassword.query_password(user, cf))
+    hashed_password = checkpassword.query_password(user, cf)
+    # If there is no such user, fall back to local db...
+    # TODO: ensure that users removed from DO will loose access
+    if hashed_password is None:
+        return None
+    return checkpassword.check_user_password(password, hashed_password)
+
+
+def sync_drupal_user(user_name, domain_name, password):
+    user = models.User.query.get(user_name + '@' + domain_name)
+    if user is None:
+        domain = models.Domain.query.get(domain_name)
+        if domain is None:
+            domain = models.Domain(name=domain_name)
+            db.session.add(domain)
+        user = models.User(localpart=user_name, domain=domain, global_admin=False)
+        db.session.add(user)
+    user.set_password(password, app.config['PASSWORD_SCHEME'])
+    db.session.commit()
 
 
 def try_drupal_auth(user_email, password):
+    '''
+    Try auth using drupal, for configured domain.
+    :param user_email: User's email
+    :param password: User's password
+    :return: True on auth success, False on auth failure, None if not processed by Drupal
+    '''
     if '@' in user_email:
         (just_user, domain) = user_email.split('@')
-        return domain == drupal_conf['domain'] and check_drupal_password(just_user, password)
-    return False
+        if domain == drupal_conf['domain']:
+            try:
+                drupal_auth = check_drupal_password(just_user, password)
+            except:
+                # Failed with exception, that means there is a problem with something else, not the password.
+                # Try to proceed with local login
+                return None
+            if drupal_auth:
+                sync_drupal_user(just_user, domain, password)
+                return True
+            elif drupal_auth is None:
+                return None
+            else:
+                return False
+    return None
+
+
+def get_user_with_external_auth(user_email, password):
+    drupal_auth = try_drupal_auth(user_email, password)
+    if drupal_auth is False:
+        # Disrupt the normal processing, we have failed auth in Drupal
+        return None
+    return models.User.query.get(user_email)
 
 
 def handle_authentication(headers):
@@ -53,13 +99,7 @@ def handle_authentication(headers):
         user_email = urllib.parse.unquote(headers["Auth-User"])
         password = urllib.parse.unquote(headers["Auth-Pass"])
         ip = urllib.parse.unquote(headers["Client-Ip"])
-        if try_drupal_auth(user_email, password):
-            return {
-                "Auth-Status": "OK",
-                "Auth-Server": server,
-                "Auth-Port": port
-            }
-        user = models.User.query.get(user_email)
+        user = get_user_with_external_auth(user_email, password)
         status = False
         if user:
             for token in user.tokens:
