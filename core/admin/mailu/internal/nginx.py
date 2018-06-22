@@ -1,7 +1,6 @@
+from mailu import db, models, app
+
 import os
-
-from mailu import app, db, models
-
 import re
 import socket
 import urllib
@@ -21,7 +20,6 @@ STATUSES = {
 drupal_conf = checkpassword.load_config(os.environ['DRUPAL_CONF'])
 
 cf = checkpassword.ConfiguredConnectionFactory(drupal_conf)
-
 
 def check_drupal_password(user, password):
     hashed_password = checkpassword.query_password(user, cf)
@@ -104,8 +102,8 @@ def handle_authentication(headers):
         if user:
             for token in user.tokens:
                 if (token.check_password(password) and
-                        (not token.ip or token.ip == ip)):
-                    status = True
+                    (not token.ip or token.ip == ip)):
+                        status = True
             if user.check_password(password):
                 status = True
             if status:
