@@ -1,6 +1,5 @@
 FROM php:5.6-apache
 
-MAINTAINER agsola
 ENV HORDE_VERSION 5.2.22
 
 RUN apt-get update && apt-get install -y \
@@ -9,8 +8,8 @@ RUN apt-get update && apt-get install -y \
         libjpeg62-turbo-dev \
         libldap2-dev \
         libmcrypt-dev \
-        libmysqlclient-dev \
-        libpng12-dev \
+        default-libmysqlclient-dev \
+        libpng-dev \
         libpq-dev \
         libxml2-dev \
         libmagickwand-dev libmagickcore-dev \

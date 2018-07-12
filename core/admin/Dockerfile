@@ -4,8 +4,8 @@ RUN mkdir -p /app
 WORKDIR /app
 
 COPY requirements-prod.txt requirements.txt
-RUN apk add --no-cache openssl \
- && apk add --no-cache --virtual build-dep openssl-dev libffi-dev python-dev build-base musl-dev mysql-dev \
+RUN apk add --no-cache libressl \
+ && apk add --no-cache --virtual build-dep libressl-dev libffi-dev python-dev build-base musl-dev mariadb-dev \
  && pip install -r requirements.txt \
  && apk del build-dep
 RUN apk --update add mariadb-client-libs
