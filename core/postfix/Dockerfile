@@ -7,4 +7,6 @@ COPY start.py /start.py
 
 EXPOSE 25/tcp 10025/tcp
 
+VOLUME /var/lib/postfix /var/spool/postfix
+
 CMD /start.py
