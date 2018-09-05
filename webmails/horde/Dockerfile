@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y \
         libjpeg62-turbo-dev \
         libldap2-dev \
         libmcrypt-dev \
-        default-libmysqlclient-dev \
+        libmysqlclient-dev \
         libpng-dev \
         libpq-dev \
         libxml2-dev \
