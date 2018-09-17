@@ -1,13 +1,11 @@
-from mailu import db, models, app
+from mailu import db, models
 
-import os
-import re
 import socket
 import urllib
 
-from drupal_auth import checkpassword
 
 SUPPORTED_AUTH_METHODS = ["none", "plain"]
+
 
 STATUSES = {
     "authentication": ("Authentication credentials invalid", {
@@ -16,65 +14,6 @@ STATUSES = {
         "pop3": "-ERR Authentication failed"
     }),
 }
-
-drupal_conf = checkpassword.load_config(os.environ['DRUPAL_CONF'])
-
-cf = checkpassword.ConfiguredConnectionFactory(drupal_conf)
-
-def check_drupal_password(user, password):
-    hashed_password = checkpassword.query_password(user, cf)
-    # If there is no such user, fall back to local db...
-    # TODO: ensure that users removed from DO will loose access
-    if hashed_password is None:
-        return None
-    return checkpassword.check_user_password(password, hashed_password)
-
-
-def sync_drupal_user(user_name, domain_name, password):
-    user = models.User.query.get(user_name + '@' + domain_name)
-    if user is None:
-        domain = models.Domain.query.get(domain_name)
-        if domain is None:
-            domain = models.Domain(name=domain_name)
-            db.session.add(domain)
-        user = models.User(localpart=user_name, domain=domain, global_admin=False)
-        db.session.add(user)
-    user.set_password(password, app.config['PASSWORD_SCHEME'])
-    db.session.commit()
-
-
-def try_drupal_auth(user_email, password):
-    '''
-    Try auth using drupal, for configured domain.
-    :param user_email: User's email
-    :param password: User's password
-    :return: True on auth success, False on auth failure, None if not processed by Drupal
-    '''
-    if '@' in user_email:
-        (just_user, domain) = user_email.split('@')
-        if domain == drupal_conf['domain']:
-            try:
-                drupal_auth = check_drupal_password(just_user, password)
-            except:
-                # Failed with exception, that means there is a problem with something else, not the password.
-                # Try to proceed with local login
-                return None
-            if drupal_auth:
-                sync_drupal_user(just_user, domain, password)
-                return True
-            elif drupal_auth is None:
-                return None
-            else:
-                return False
-    return None
-
-
-def get_user_with_external_auth(user_email, password):
-    drupal_auth = try_drupal_auth(user_email, password)
-    if drupal_auth is False:
-        # Disrupt the normal processing, we have failed auth in Drupal
-        return None
-    return models.User.query.get(user_email)
 
 
 def handle_authentication(headers):
@@ -97,7 +36,7 @@ def handle_authentication(headers):
         user_email = urllib.parse.unquote(headers["Auth-User"])
         password = urllib.parse.unquote(headers["Auth-Pass"])
         ip = urllib.parse.unquote(headers["Client-Ip"])
-        user = get_user_with_external_auth(user_email, password)
+        user = models.User.query.get(user_email)
         status = False
         if user:
             for token in user.tokens:
@@ -111,7 +50,7 @@ def handle_authentication(headers):
                     status = False
                 elif protocol == "pop3" and not user.enable_pop:
                     status = False
-        if status and user.enabled:
+        if status:
             return {
                 "Auth-Status": "OK",
                 "Auth-Server": server,
@@ -134,19 +73,14 @@ def get_status(protocol, status):
     status, codes = STATUSES[status]
     return status, codes[protocol]
 
-def extract_host_port(host_and_port, default_port):
-    host, _, port = re.match('^(.*)(:([0-9]*))?$', host_and_port).groups()
-    return host, int(port) if port else default_port
 
 def get_server(protocol, authenticated=False):
     if protocol == "imap":
-        hostname, port = extract_host_port(app.config['HOST_IMAP'], 143)
+        hostname, port = "imap", 143
     elif protocol == "pop3":
-        hostname, port = extract_host_port(app.config['HOST_POP3'], 110)
+        hostname, port = "imap", 110
     elif protocol == "smtp":
-        if authenticated:
-            hostname, port = extract_host_port(app.config['HOST_AUTHSMTP'], 10025)
-        else:
-            hostname, port = extract_host_port(app.config['HOST_SMTP'], 25)
+        hostname = "smtp"
+        port = 10025 if authenticated else 25
     address = socket.gethostbyname(hostname)
     return address, port

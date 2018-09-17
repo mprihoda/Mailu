@@ -1,6 +1,0 @@
-{
-  "module": "sqlite3",
-  "options": {
-    "database": "testdata/testdata.sqlite"
-  }
-}
